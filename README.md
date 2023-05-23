@@ -8,7 +8,7 @@
 
 
 ## 修改
-- [x] 修改加载keys的方式为`classLoader.getResourceAsStream`
+- [x] 修改加载keys的方式为`classLoader.getResourceAsStream`，不需要在工具目录下创建data/shiro_keys(若要自定义新增密钥，可以工具目录下创建data/shiro_keys)
 - [x] 修改了一些显示bug，如内存马已存在时显示信息过多
 - [x] 兼容新增内存马的显示，如UpgradeMemshell
 

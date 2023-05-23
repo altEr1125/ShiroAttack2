@@ -137,23 +137,27 @@ public class AttackService {
         ArrayList shiroKeys = new ArrayList();
 
         try {
-//            List<String> array = new ArrayList(Arrays.asList(cwd, "data", "shiro_keys.txt"));
-//            File shiro_file = new File(StringUtils.join(array, File.separator));
-//            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(shiro_file), "UTF-8"));
-//
-//            try {
-//                String line;
-//                try {
-//                    while((line = br.readLine()) != null) {
-//                        shiroKeys.add(line);
-//                    }
-//                } catch (IOException var10) {
-//                    var10.printStackTrace();
-//                }
-//            } finally {
-//                if (br != null) {
-//                    br.close();
-//                }
+            try{
+                List<String> array = new ArrayList(Arrays.asList(cwd, "data", "shiro_keys.txt"));
+                File shiro_file = new File(StringUtils.join(array, File.separator));
+                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(shiro_file), "UTF-8"));
+
+                try {
+                    String line;
+                    try {
+                        while((line = br.readLine()) != null) {
+                            shiroKeys.add(line);
+                        }
+                    } catch (IOException var10) {
+                        var10.printStackTrace();
+                    }
+                } finally {
+                    if (br != null) {
+                        br.close();
+                    }
+                }
+            } catch (Exception var12) {
+            }
 
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             InputStream inputStream = classLoader.getResourceAsStream("data/shiro_keys.txt");
@@ -491,33 +495,5 @@ public class AttackService {
             this.mainController.InjOutputArea.appendText(Utils.log("-------------------------------------------------"));
         }
 
-    }
-
-    public static void main(String[] args) {
-        List<String> array = new ArrayList();
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        InputStream inputStream = classLoader.getResourceAsStream("data/shiro_keys.txt");
-        if (inputStream != null) {
-            Scanner scanner = null;
-
-            try {
-                scanner = new Scanner(inputStream);
-
-                while(scanner.hasNextLine()) {
-                    String nextLine = scanner.nextLine();
-                    if (!isBlank(nextLine)) {
-                        array.add(nextLine);
-                    }
-                }
-            } catch (Exception var9) {
-            } finally {
-                if (scanner != null) {
-                    scanner.close();
-                }
-
-            }
-        }
-        System.out.println(array.size());
-        System.out.println(array);
     }
 }
