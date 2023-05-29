@@ -138,24 +138,24 @@ public class AttackService {
 
         try {
             try{
-                List<String> array = new ArrayList(Arrays.asList(cwd, "data", "shiro_keys.txt"));
-                File shiro_file = new File(StringUtils.join(array, File.separator));
-                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(shiro_file), "UTF-8"));
+            List<String> array = new ArrayList(Arrays.asList(cwd, "data", "shiro_keys.txt"));
+            File shiro_file = new File(StringUtils.join(array, File.separator));
+            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(shiro_file), "UTF-8"));
 
+            try {
+                String line;
                 try {
-                    String line;
-                    try {
-                        while((line = br.readLine()) != null) {
-                            shiroKeys.add(line);
-                        }
-                    } catch (IOException var10) {
-                        var10.printStackTrace();
+                    while((line = br.readLine()) != null) {
+                        shiroKeys.add(line);
                     }
-                } finally {
-                    if (br != null) {
-                        br.close();
-                    }
+                } catch (IOException var10) {
+                    var10.printStackTrace();
                 }
+            } finally {
+                if (br != null) {
+                    br.close();
+                }
+            }
             } catch (Exception var12) {
             }
 
@@ -376,9 +376,11 @@ public class AttackService {
                                 break;
                             }
 
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey));
+//                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey));
+                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[" + (i+1) + "] " + shirokey));
+
                         } catch (Exception var6) {
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage()));
+                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[" + (i+1) + "]" + shirokey + " " + var6.getMessage()));
                         }
 
                     }
@@ -412,9 +414,9 @@ public class AttackService {
                                 break;
                             }
 
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey));
+                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[" + (i+1) + "] " + shirokey));
                         } catch (Exception var6) {
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage()));
+                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[" + (i+1) + "] " + shirokey + " " + var6.getMessage()));
                         }
 
                     }

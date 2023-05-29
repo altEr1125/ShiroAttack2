@@ -1,10 +1,10 @@
 一款针对Shiro550漏洞进行快速漏洞利用工具。
 对 @SummerSec 大佬的项目https://github.com/SummerSec/ShiroAttack2 进行了一些改进。具体修改内容如下
 ## 添加
-- [x] 增加[Suo5](https://github.com/zema1/suo5)内存马
+- [x] 增加[Suo5](https://github.com/zema1/suo5) v0.8.0内存马
 - [x] 增加[UpgradeMemshell](https://mp.weixin.qq.com/s/RuP8cfjUXnLVJezBBBqsYw)内存马
 - [x] 增加内存马自定义payload key选项，消除工具特征
-- [ ] 消除内存马pass、path特征
+- [x] 消除内存马pass、path特征
 
 
 ## 修改
@@ -12,6 +12,7 @@
 - [x] 修改了一些显示bug，如内存马已存在时显示信息过多
 - [x] 兼容新增内存马的显示，如UpgradeMemshell
 
+有什么需求欢迎在issue里提
 原README如下
 
 ---
